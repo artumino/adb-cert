@@ -1,0 +1,13 @@
+[package]
+name = "adbcert"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.75"
+clap = { version = "4.4.2", features = ["derive"] }
+md5 = "0.7.0"
+mozdevice = "0.5.1"
+x509-parser = "0.15.1"
