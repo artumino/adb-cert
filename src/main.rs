@@ -1,5 +1,5 @@
 use clap::Parser;
-use mozdevice::{Device, UnixPath};
+use mozdevice::{Device, Host, UnixPath};
 use x509_parser::pem::Pem;
 use x509_parser::prelude::X509Certificate;
 
@@ -14,9 +14,6 @@ struct Args {
     // The device serial number to use
     #[clap(long)]
     device_serial: Option<String>,
-    // Determines if the process should elevate to root
-    #[clap(long, default_value = "false")]
-    run_as_root: bool,
 }
 
 fn main() -> anyhow::Result<()> {
@@ -25,14 +22,12 @@ fn main() -> anyhow::Result<()> {
     println!("Installing {}", pem_file);
 
     println!("Finding ADB device");
-    let host = mozdevice::Host::default();
+    let host = Host::default();
     let device = host.device_or_default(
         args.device_serial.as_ref(),
         mozdevice::AndroidStorageInput::Auto,
     )?;
     println!("Found device {}", &device.serial);
-
-    elevate_privileges(args.run_as_root, &device)?;
 
     let pem_file = std::fs::read(pem_file)?;
     for pem in Pem::iter_from_buffer(&pem_file) {
@@ -40,22 +35,6 @@ fn main() -> anyhow::Result<()> {
             install_cert(&cert, &args.cert_path, &pem_file, &device)?;
         }
     }
-
-    Ok(())
-}
-
-fn elevate_privileges(run_as_root: bool, device: &Device) -> Result<(), anyhow::Error> {
-    if run_as_root && !device.adbd_root {
-        println!("Elevating to root...");
-        device.execute_host_command("root", false, false)?;
-
-        if !device.adbd_root {
-            println!("Failed to elevate to root");
-            return Ok(());
-        }
-
-        println!("Elevated to root");
-    };
     Ok(())
 }
 
@@ -104,7 +83,7 @@ fn install_cert(
 
     let md5_hash = old_hash_encode(cert.subject().as_raw());
     println!("Calculated MD5 hash for subject {:x}", &md5_hash);
-    let cert_filename = format!("{}{}", &md5_hash, cert_path);
+    let cert_filename = format!("{}{:x}", cert_path, &md5_hash);
     let mut iteration = 0;
     while !collision_aware_copy(&cert_filename, iteration, cert_bytes, device)? {
         iteration += 1;
